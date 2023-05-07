@@ -1,5 +1,9 @@
+mod schema;
+
 use eyre::Result;
-use zip::ZipArchive;
+use zip::{read::ZipFile, ZipArchive};
+
+pub use schema::*;
 
 pub struct Container {
     pub filename: String,
@@ -42,7 +46,7 @@ impl Files {
 
         for (cidx, container) in containers.iter_mut().enumerate() {
             for i in 0..container.zip.len() {
-                let file = container.zip.by_index_raw(i)?;
+                let file = container.zip.by_index(i)?;
                 if file.is_file() {
                     let name = std::path::Path::new(file.name())
                         .file_name()
@@ -64,5 +68,35 @@ impl Files {
             files,
             containers,
         })
+    }
+
+    fn get_file_stream<'a>(
+        &'a mut self,
+        filename: &str,
+    ) -> Result<csv::Reader<impl std::io::Read + 'a>> {
+        Self::internal_get_file_stream(&self.files, &mut self.containers, filename)
+    }
+
+    /// Separated internals so that we can use this during construction without having
+    /// the full object yet.
+    fn internal_get_file_stream<'a>(
+        files: &'_ [FileLocation],
+        containers: &'a mut [Container],
+        filename: &str,
+    ) -> Result<csv::Reader<impl std::io::Read + 'a>> {
+        let location = files
+            .iter()
+            .find(|f| f.name == filename)
+            .ok_or_else(|| eyre::eyre!("Could not find file {} in dataset.", filename))?;
+        let container = &mut containers[location.container];
+        let file = container.zip.by_index(location.index_in_container)?;
+
+        let decomp = flate2::read::GzDecoder::new(file);
+        let csv_reader = csv::ReaderBuilder::new()
+            .delimiter(b'|')
+            .has_headers(false)
+            .from_reader(decomp);
+
+        Ok(csv_reader)
     }
 }
