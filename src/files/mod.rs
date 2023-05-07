@@ -1,25 +1,26 @@
+mod file_iterator;
 mod schema;
 
+use ahash::{HashMap, HashMapExt};
 use eyre::Result;
-use zip::{read::ZipFile, ZipArchive};
+use zip::ZipArchive;
 
 pub use schema::*;
 
-pub struct Container {
-    pub filename: String,
-    zip: ZipArchive<std::fs::File>,
-}
+use self::file_iterator::FileIterator;
 
-pub struct FileLocation {
-    pub name: String,
-    pub container: usize,
-    pub index_in_container: usize,
+pub type RrfCsvReader<'a> = csv::Reader<flate2::read::GzDecoder<zip::read::ZipFile<'a>>>;
+
+#[derive(Copy, Clone)]
+struct ContainerLocation {
+    pub container: u16,
+    pub index_in_container: u16,
 }
 
 pub struct Files {
     pub dir: String,
-    pub files: Vec<FileLocation>,
-    pub containers: Vec<Container>,
+    files: HashMap<String, Vec<ContainerLocation>>,
+    containers: Vec<ZipArchive<std::fs::File>>,
 }
 
 impl Files {
@@ -31,22 +32,19 @@ impl Files {
                 let f = std::fs::File::open(path.path())?;
                 let zip = ZipArchive::new(f)?;
 
-                Ok(Container {
-                    filename: path.file_name().to_string_lossy().to_string(),
-                    zip,
-                })
+                Ok(zip)
             })
-            .collect::<Result<Vec<Container>>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         if containers.is_empty() {
             return Err(eyre::eyre!("No UMLS .nlm files found in {}", dir));
         }
 
-        let mut files = Vec::new();
+        let mut files = HashMap::new();
 
         for (cidx, container) in containers.iter_mut().enumerate() {
-            for i in 0..container.zip.len() {
-                let file = container.zip.by_index(i)?;
+            for i in 0..container.len() {
+                let file = container.by_index(i)?;
                 if file.is_file() {
                     let name = std::path::Path::new(file.name())
                         .file_name()
@@ -54,11 +52,15 @@ impl Files {
                         .to_string_lossy()
                         .to_string();
 
-                    files.push(FileLocation {
-                        name,
-                        container: cidx,
-                        index_in_container: i,
-                    });
+                    let base_name = name.split('.').next().unwrap_or_default().to_string();
+
+                    files
+                        .entry(base_name)
+                        .or_insert_with(Vec::new)
+                        .push(ContainerLocation {
+                            container: cidx as u16,
+                            index_in_container: i as u16,
+                        });
                 }
             }
         }
@@ -70,26 +72,27 @@ impl Files {
         })
     }
 
-    fn get_file_stream<'a>(
-        &'a mut self,
-        filename: &str,
-    ) -> Result<csv::Reader<impl std::io::Read + 'a>> {
-        Self::internal_get_file_stream(&self.files, &mut self.containers, filename)
+    fn get_file_stream<'a>(&'a mut self, filename: &str) -> Result<FileIterator<'a>> {
+        let locations = self
+            .files
+            .get(filename)
+            .ok_or_else(|| eyre::eyre!("No file named {}", filename,))?;
+
+        Ok(FileIterator {
+            locations: locations.clone(),
+            location_index: 0,
+            files: self,
+        })
     }
 
     /// Separated internals so that we can use this during construction without having
     /// the full object yet.
-    fn internal_get_file_stream<'a>(
-        files: &'_ [FileLocation],
-        containers: &'a mut [Container],
-        filename: &str,
-    ) -> Result<csv::Reader<impl std::io::Read + 'a>> {
-        let location = files
-            .iter()
-            .find(|f| f.name == filename)
-            .ok_or_else(|| eyre::eyre!("Could not find file {} in dataset.", filename))?;
-        let container = &mut containers[location.container];
-        let file = container.zip.by_index(location.index_in_container)?;
+    fn get_file_stream_for_location(
+        &mut self,
+        location: ContainerLocation,
+    ) -> Result<RrfCsvReader<'_>> {
+        let container = &mut self.containers[location.container as usize];
+        let file = container.by_index(location.index_in_container as usize)?;
 
         let decomp = flate2::read::GzDecoder::new(file);
         let csv_reader = csv::ReaderBuilder::new()

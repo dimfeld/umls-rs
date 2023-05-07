@@ -1,4 +1,4 @@
-use super::{Container, FileLocation, Files};
+use super::Files;
 use ahash::{HashMap, HashMapExt};
 use eyre::Result;
 
@@ -19,27 +19,27 @@ pub struct Column {
 
 impl Files {
     pub fn read_schema_descriptions(&mut self) -> Result<Vec<FileDescription>> {
-        let mut mrcols = self.get_file_stream("MRCOLS.RRF.gz")?;
-
         let mut column_descs = HashMap::new();
 
-        for line in mrcols.records() {
-            let line = line?;
-            let col_name = line.get(0).unwrap_or_default();
-            let desc = line.get(1).unwrap_or_default();
-            let file_name = line.get(6).unwrap_or_default();
+        {
+            let mut mrcols = self.get_file_stream("MRCOLS")?;
 
-            column_descs.insert(
-                (file_name.to_string(), col_name.to_string()),
-                desc.to_string(),
-            );
+            for line in mrcols.next().unwrap()?.records() {
+                let line = line?;
+                let col_name = line.get(0).unwrap_or_default();
+                let desc = line.get(1).unwrap_or_default();
+                let file_name = line.get(6).unwrap_or_default();
+
+                column_descs.insert(
+                    (file_name.to_string(), col_name.to_string()),
+                    desc.to_string(),
+                );
+            }
         }
 
-        drop(mrcols);
-
-        let mut mrfiles = self.get_file_stream("MRFILES.RRF.gz")?;
+        let mut mrfiles = self.get_file_stream("MRFILES")?;
         let mut files = Vec::new();
-        for line in mrfiles.records() {
+        for line in mrfiles.next().unwrap()?.records() {
             let line = line?;
             let filename = line.get(0).unwrap_or_default().to_string();
             let description = line.get(1).unwrap_or_default();
