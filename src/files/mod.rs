@@ -18,14 +18,13 @@ struct ContainerLocation {
 }
 
 pub struct Files {
-    pub dir: String,
     files: HashMap<String, Vec<ContainerLocation>>,
     containers: Vec<ZipArchive<std::fs::File>>,
 }
 
 impl Files {
-    pub fn new(dir: String) -> Result<Self> {
-        let mut containers = std::fs::read_dir(&dir)?
+    pub fn new(dir: &str) -> Result<Self> {
+        let mut containers = std::fs::read_dir(dir)?
             .filter_map(|path| path.ok())
             .filter(|path| path.file_name().to_string_lossy().ends_with("-meta.nlm"))
             .map(|path| {
@@ -65,11 +64,7 @@ impl Files {
             }
         }
 
-        Ok(Self {
-            dir,
-            files,
-            containers,
-        })
+        Ok(Self { files, containers })
     }
 
     fn get_file_stream<'a>(&'a mut self, filename: &str) -> Result<FileIterator<'a>> {
