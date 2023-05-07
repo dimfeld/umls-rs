@@ -10,11 +10,11 @@ fn main() -> Result<()> {
 
     let files = Files::new(args.dir)?;
 
-    for cont in files.containers {
-        println!("Container {}", cont.container);
-        for file in cont.files {
-            println!("  {}", file);
-        }
+    for file in files.files {
+        println!(
+            "{} {} {}",
+            file.container, file.index_in_container, file.name
+        );
     }
 
     Ok(())
