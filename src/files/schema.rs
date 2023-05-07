@@ -1,5 +1,5 @@
 use super::{Container, FileLocation, Files};
-use ahash::HashMap;
+use ahash::{HashMap, HashMapExt};
 use eyre::Result;
 
 #[derive(Debug)]
@@ -21,7 +21,7 @@ impl Files {
     pub fn read_schema_descriptions(&mut self) -> Result<Vec<FileDescription>> {
         let mut mrcols = self.get_file_stream("MRCOLS.RRF.gz")?;
 
-        let mut column_descs = HashMap::default();
+        let mut column_descs = HashMap::new();
 
         for line in mrcols.records() {
             let line = line?;
