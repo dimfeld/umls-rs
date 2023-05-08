@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use ahash::{HashMap, HashMapExt};
 use eyre::Result;
-use zip::ZipArchive;
+use zip::{read::ZipFile, ZipArchive};
 
 pub use schema::*;
 
@@ -19,8 +19,14 @@ struct ContainerLocation {
     pub index_in_container: u16,
 }
 
+#[derive(Clone, Default)]
+struct File {
+    locations: Vec<ContainerLocation>,
+    columns: Vec<String>,
+}
+
 pub struct Files {
-    files: HashMap<String, Vec<ContainerLocation>>,
+    files: HashMap<String, File>,
     containers: Vec<PathBuf>,
 }
 
@@ -58,7 +64,8 @@ impl Files {
 
                     files
                         .entry(base_name)
-                        .or_insert_with(Vec::new)
+                        .or_insert_with(File::default)
+                        .locations
                         .push(ContainerLocation {
                             container: cidx as u16,
                             index_in_container: i as u16,
@@ -72,7 +79,10 @@ impl Files {
             .map(|(path, _)| path)
             .collect::<Vec<_>>();
 
-        Ok(Self { files, containers })
+        let mut slf = Self { files, containers };
+        slf.init_file_columns()?;
+
+        Ok(slf)
     }
 
     fn get_file_stream(&mut self, filename: &str) -> Result<FileIterator> {
@@ -83,4 +93,38 @@ impl Files {
 
         FileIterator::new(locations.clone(), &self.containers)
     }
+
+    fn init_file_columns(&mut self) -> Result<()> {
+        let mut files_list = self.get_file_stream("MRFILES")?;
+        while let Some(f) = files_list.next() {
+            let mut f = f?;
+            for line in f.records() {
+                let line = line?;
+                let filename = line.get(0).unwrap_or_default();
+                let basename = filename.split('.').next().unwrap_or_default();
+                let columns = line.get(2).unwrap_or_default();
+
+                let columns = columns
+                    .split(',')
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+
+                if let Some(f) = self.files.get_mut(basename) {
+                    f.columns = columns;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn create_read_stream(file: ZipFile<'_>) -> RrfCsvReader<'_> {
+    let decomp = flate2::read::GzDecoder::new(file);
+    let csv_reader = csv::ReaderBuilder::new()
+        .delimiter(b'|')
+        .has_headers(false)
+        .from_reader(decomp);
+
+    csv_reader
 }

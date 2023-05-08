@@ -3,19 +3,20 @@ use std::path::PathBuf;
 use eyre::Result;
 use zip::ZipArchive;
 
-use super::{ContainerLocation, RrfCsvReader};
+use super::{create_read_stream, ContainerLocation, RrfCsvReader};
 
 pub struct FileIterator {
-    pub(super) locations: Vec<ContainerLocation>,
-    pub(super) location_index: usize,
-    pub(super) zips: Vec<(usize, ZipArchive<std::fs::File>)>,
+    pub columns: Vec<String>,
+    locations: Vec<ContainerLocation>,
+    location_index: usize,
+    zips: Vec<(usize, ZipArchive<std::fs::File>)>,
 }
 
 impl FileIterator {
-    pub(super) fn new(locations: Vec<ContainerLocation>, zips: &[PathBuf]) -> Result<Self> {
+    pub(super) fn new(file: super::File, zips: &[PathBuf]) -> Result<Self> {
         let mut found_containers = Vec::new();
 
-        for location in &locations {
+        for location in &file.locations {
             let container = location.container as usize;
             if !found_containers.contains(&container) {
                 found_containers.push(container);
@@ -34,7 +35,8 @@ impl FileIterator {
             .collect::<Result<Vec<(_, ZipArchive<std::fs::File>)>>>()?;
 
         Ok(Self {
-            locations,
+            columns: file.columns,
+            locations: file.locations,
             location_index: 0,
             zips,
         })
@@ -67,12 +69,6 @@ impl FileIterator {
 
         let file = container.1.by_index(location.index_in_container as usize)?;
 
-        let decomp = flate2::read::GzDecoder::new(file);
-        let csv_reader = csv::ReaderBuilder::new()
-            .delimiter(b'|')
-            .has_headers(false)
-            .from_reader(decomp);
-
-        Ok(csv_reader)
+        Ok(create_read_stream(file))
     }
 }
