@@ -1,102 +1,75 @@
 mod file_iterator;
+mod find_files;
 mod schema;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ahash::{HashMap, HashMapExt};
 use eyre::Result;
-use zip::{read::ZipFile, ZipArchive};
 
 pub use schema::*;
 
-use self::file_iterator::FileIterator;
+use self::{file_iterator::FileIterator, find_files::find_data_files};
 
-pub type RrfCsvReader<'a> = csv::Reader<flate2::read::GzDecoder<zip::read::ZipFile<'a>>>;
-
-#[derive(Copy, Clone)]
-struct ContainerLocation {
-    pub container: u16,
-    pub index_in_container: u16,
-}
+pub type RrfReader = flate2::bufread::GzDecoder<std::io::BufReader<std::fs::File>>;
+pub type RrfCsvReader = csv::Reader<RrfReader>;
 
 #[derive(Clone, Default)]
 struct File {
-    locations: Vec<ContainerLocation>,
+    locations: Vec<PathBuf>,
     columns: Vec<String>,
 }
 
 pub struct Files {
     files: HashMap<String, File>,
-    containers: Vec<PathBuf>,
 }
 
 impl Files {
-    pub fn new(dir: &str) -> Result<Self> {
-        let mut containers = std::fs::read_dir(dir)?
-            .filter_map(|path| path.ok())
-            .filter(|path| path.file_name().to_string_lossy().ends_with("-meta.nlm"))
-            .map(|path| {
-                let path = path.path();
-                let f = std::fs::File::open(&path)?;
-                let zip = ZipArchive::new(f)?;
-
-                Ok((path, zip))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        if containers.is_empty() {
-            return Err(eyre::eyre!("No UMLS .nlm files found in {}", dir));
-        }
+    pub fn new(dir: &Path) -> Result<Self> {
+        let dir = find_data_files(dir)?;
 
         let mut files = HashMap::new();
 
-        for (cidx, (_, container)) in containers.iter_mut().enumerate() {
-            for i in 0..container.len() {
-                let file = container.by_index(i)?;
-                if file.is_file() {
-                    let name = std::path::Path::new(file.name())
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-
-                    let base_name = name.split('.').next().unwrap_or_default().to_string();
-
-                    files
-                        .entry(base_name)
-                        .or_insert_with(File::default)
-                        .locations
-                        .push(ContainerLocation {
-                            container: cidx as u16,
-                            index_in_container: i as u16,
-                        });
-                }
+        let entries = std::fs::read_dir(&dir)?;
+        for file in entries {
+            let file = file?;
+            if !file.metadata()?.is_file() {
+                continue;
             }
+
+            let name = file.file_name();
+            let base_name = name
+                .to_string_lossy()
+                .split('.')
+                .next()
+                .unwrap_or_default()
+                .to_string();
+
+            files
+                .entry(base_name)
+                .or_insert_with(File::default)
+                .locations
+                .push(file.path());
         }
 
-        let containers = containers
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect::<Vec<_>>();
-
-        let mut slf = Self { files, containers };
+        let mut slf = Self { files };
         slf.init_file_columns()?;
 
         Ok(slf)
     }
 
-    fn get_file_stream(&mut self, filename: &str) -> Result<FileIterator> {
+    fn get_file_stream(&self, filename: &str) -> Result<FileIterator> {
         let locations = self
             .files
             .get(filename)
             .ok_or_else(|| eyre::eyre!("No file named {}", filename,))?;
 
-        FileIterator::new(locations.clone(), &self.containers)
+        FileIterator::new(locations)
     }
 
     fn init_file_columns(&mut self) -> Result<()> {
-        let mut files_list = self.get_file_stream("MRFILES")?;
-        while let Some(f) = files_list.next() {
+        let files_list = self.get_file_stream("MRFILES")?;
+        for f in files_list {
             let mut f = f?;
             for line in f.records() {
                 let line = line?;
@@ -119,12 +92,14 @@ impl Files {
     }
 }
 
-fn create_read_stream(file: ZipFile<'_>) -> RrfCsvReader<'_> {
-    let decomp = flate2::read::GzDecoder::new(file);
+fn create_read_stream(path: &Path) -> Result<RrfCsvReader> {
+    let file = std::fs::File::open(path)?;
+    let bufreader = std::io::BufReader::new(file);
+    let decomp = flate2::bufread::GzDecoder::new(bufreader);
     let csv_reader = csv::ReaderBuilder::new()
         .delimiter(b'|')
         .has_headers(false)
         .from_reader(decomp);
 
-    csv_reader
+    Ok(csv_reader)
 }
