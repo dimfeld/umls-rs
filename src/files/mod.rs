@@ -9,19 +9,16 @@ use eyre::Result;
 
 pub use schema::*;
 
-use self::{file_iterator::FileIterator, find_files::find_data_files};
-
-pub type RrfReader = flate2::bufread::GzDecoder<std::io::BufReader<std::fs::File>>;
-pub type RrfCsvReader = csv::Reader<RrfReader>;
+use self::{file_iterator::File, find_files::find_data_files};
 
 #[derive(Clone, Default)]
-struct File {
+struct FileMetadata {
     locations: Vec<PathBuf>,
     columns: Vec<String>,
 }
 
 pub struct Files {
-    files: HashMap<String, File>,
+    files: HashMap<String, FileMetadata>,
 }
 
 impl Files {
@@ -47,9 +44,14 @@ impl Files {
 
             files
                 .entry(base_name)
-                .or_insert_with(File::default)
+                .or_insert_with(FileMetadata::default)
                 .locations
                 .push(file.path());
+        }
+
+        // read_dir may not return the files in order, so sort them.
+        for (_, file) in files.iter_mut() {
+            file.locations.sort_unstable();
         }
 
         let mut slf = Self { files };
@@ -58,48 +60,33 @@ impl Files {
         Ok(slf)
     }
 
-    fn get_file_stream(&self, filename: &str) -> Result<FileIterator> {
+    pub fn get_file_stream(&self, filename: &str) -> Result<File> {
         let locations = self
             .files
             .get(filename)
             .ok_or_else(|| eyre::eyre!("No file named {}", filename,))?;
 
-        FileIterator::new(locations)
+        File::new(locations)
     }
 
     fn init_file_columns(&mut self) -> Result<()> {
-        let files_list = self.get_file_stream("MRFILES")?;
-        for f in files_list {
-            let mut f = f?;
-            for line in f.records() {
-                let line = line?;
-                let filename = line.get(0).unwrap_or_default();
-                let basename = filename.split('.').next().unwrap_or_default();
-                let columns = line.get(2).unwrap_or_default();
+        let mut mrfiles = self.get_file_stream("MRFILES")?;
+        for line in mrfiles.reader.records() {
+            let line = line?;
+            let filename = line.get(0).unwrap_or_default();
+            let basename = filename.split('.').next().unwrap_or_default();
+            let columns = line.get(2).unwrap_or_default();
 
-                let columns = columns
-                    .split(',')
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>();
+            let columns = columns
+                .split(',')
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
 
-                if let Some(f) = self.files.get_mut(basename) {
-                    f.columns = columns;
-                }
+            if let Some(f) = self.files.get_mut(basename) {
+                f.columns = columns;
             }
         }
 
         Ok(())
     }
-}
-
-fn create_read_stream(path: &Path) -> Result<RrfCsvReader> {
-    let file = std::fs::File::open(path)?;
-    let bufreader = std::io::BufReader::new(file);
-    let decomp = flate2::bufread::GzDecoder::new(bufreader);
-    let csv_reader = csv::ReaderBuilder::new()
-        .delimiter(b'|')
-        .has_headers(false)
-        .from_reader(decomp);
-
-    Ok(csv_reader)
 }

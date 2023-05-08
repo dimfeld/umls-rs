@@ -1,38 +1,45 @@
 use std::path::PathBuf;
 
+use concat_reader::read::ConcatReader;
 use eyre::Result;
 
-use super::{create_read_stream, RrfCsvReader};
+pub type RrfReader = flate2::bufread::GzDecoder<std::io::BufReader<std::fs::File>>;
+pub type RrfCsvReader = csv::Reader<concat_reader::ConcatReader<Vec<RrfReader>>>;
 
-pub struct FileIterator {
+pub struct File {
     pub columns: Vec<String>,
-    locations: Vec<PathBuf>,
-    location_index: usize,
+    pub reader: RrfCsvReader,
 }
 
-impl FileIterator {
-    pub(super) fn new(file: &super::File) -> Result<Self> {
+impl File {
+    pub(super) fn new(file: &super::FileMetadata) -> Result<Self> {
+        let reader = create_read_stream(&file.locations)?;
         Ok(Self {
             columns: file.columns.clone(),
-            locations: file.locations.clone(),
-            location_index: 0,
+            reader,
         })
     }
 }
 
-impl Iterator for FileIterator {
-    type Item = Result<RrfCsvReader>;
+/// Create a CSV decoder stream that concatenates the decompressed output from the
+/// list of .gz files.
+fn create_read_stream(path: &[PathBuf]) -> Result<RrfCsvReader> {
+    let readers = path
+        .iter()
+        .map(|path| {
+            let file = std::fs::File::open(path)?;
+            let bufreader = std::io::BufReader::new(file);
+            let decomp = flate2::bufread::GzDecoder::new(bufreader);
+            Ok(decomp)
+        })
+        .collect::<Result<Vec<_>>>()?;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.location_index >= self.locations.len() {
-            return None;
-        }
+    let concatted = ConcatReader::new(readers);
 
-        let file = &self.locations[self.location_index];
+    let csv_reader = csv::ReaderBuilder::new()
+        .delimiter(b'|')
+        .has_headers(false)
+        .from_reader(concatted);
 
-        self.location_index += 1;
-
-        let csv_reader = create_read_stream(file);
-        Some(csv_reader)
-    }
+    Ok(csv_reader)
 }

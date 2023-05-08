@@ -24,7 +24,7 @@ impl Files {
         {
             let mut mrcols = self.get_file_stream("MRCOLS")?;
 
-            for line in mrcols.next().unwrap()?.records() {
+            for line in mrcols.reader.records() {
                 let line = line?;
                 let col_name = line.get(0).unwrap_or_default();
                 let desc = line.get(1).unwrap_or_default();
@@ -39,7 +39,7 @@ impl Files {
 
         let mut mrfiles = self.get_file_stream("MRFILES")?;
         let mut files = Vec::new();
-        for line in mrfiles.next().unwrap()?.records() {
+        for line in mrfiles.reader.records() {
             let line = line?;
             let filename = line.get(0).unwrap_or_default().to_string();
             let description = line.get(1).unwrap_or_default();
