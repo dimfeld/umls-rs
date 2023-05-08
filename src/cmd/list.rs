@@ -13,7 +13,7 @@ pub fn run(mut files: Files, args: ListArgs) -> Result<()> {
 
     for file in schema {
         println!(
-            "{} {} {} {}",
+            "{} - {} - {} rows, {} bytes",
             file.filename, file.description, file.num_rows, file.num_bytes
         );
 
@@ -21,6 +21,7 @@ pub fn run(mut files: Files, args: ListArgs) -> Result<()> {
             for col in file.columns {
                 println!("  {} {}", col.name, col.description);
             }
+            println!();
         }
     }
 

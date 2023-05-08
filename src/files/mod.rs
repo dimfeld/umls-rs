@@ -1,6 +1,8 @@
 mod file_iterator;
 mod schema;
 
+use std::path::PathBuf;
+
 use ahash::{HashMap, HashMapExt};
 use eyre::Result;
 use zip::ZipArchive;
@@ -19,7 +21,7 @@ struct ContainerLocation {
 
 pub struct Files {
     files: HashMap<String, Vec<ContainerLocation>>,
-    containers: Vec<ZipArchive<std::fs::File>>,
+    containers: Vec<PathBuf>,
 }
 
 impl Files {
@@ -28,10 +30,11 @@ impl Files {
             .filter_map(|path| path.ok())
             .filter(|path| path.file_name().to_string_lossy().ends_with("-meta.nlm"))
             .map(|path| {
-                let f = std::fs::File::open(path.path())?;
+                let path = path.path();
+                let f = std::fs::File::open(&path)?;
                 let zip = ZipArchive::new(f)?;
 
-                Ok(zip)
+                Ok((path, zip))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -41,7 +44,7 @@ impl Files {
 
         let mut files = HashMap::new();
 
-        for (cidx, container) in containers.iter_mut().enumerate() {
+        for (cidx, (_, container)) in containers.iter_mut().enumerate() {
             for i in 0..container.len() {
                 let file = container.by_index(i)?;
                 if file.is_file() {
@@ -64,37 +67,20 @@ impl Files {
             }
         }
 
+        let containers = containers
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
+
         Ok(Self { files, containers })
     }
 
-    fn get_file_stream<'a>(&'a mut self, filename: &str) -> Result<FileIterator<'a>> {
+    fn get_file_stream(&mut self, filename: &str) -> Result<FileIterator> {
         let locations = self
             .files
             .get(filename)
             .ok_or_else(|| eyre::eyre!("No file named {}", filename,))?;
 
-        Ok(FileIterator {
-            locations: locations.clone(),
-            location_index: 0,
-            files: self,
-        })
-    }
-
-    /// Separated internals so that we can use this during construction without having
-    /// the full object yet.
-    fn get_file_stream_for_location(
-        &mut self,
-        location: ContainerLocation,
-    ) -> Result<RrfCsvReader<'_>> {
-        let container = &mut self.containers[location.container as usize];
-        let file = container.by_index(location.index_in_container as usize)?;
-
-        let decomp = flate2::read::GzDecoder::new(file);
-        let csv_reader = csv::ReaderBuilder::new()
-            .delimiter(b'|')
-            .has_headers(false)
-            .from_reader(decomp);
-
-        Ok(csv_reader)
+        FileIterator::new(locations.clone(), &self.containers)
     }
 }

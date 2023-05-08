@@ -27,6 +27,6 @@ pub enum Command {
 
 pub fn run(files: Files, args: Args) -> Result<()> {
     match args.command {
-        Command::List(list) => list::run(files, list),
+        Command::List(args) => list::run(files, args),
     }
 }
