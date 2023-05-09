@@ -1,5 +1,6 @@
 use eyre::Result;
-use fst::IntoStreamer;
+use fst::{IntoStreamer, Streamer};
+use regex_automata::dense;
 use std::{
     io::{BufRead, Read},
     path::Path,
@@ -33,8 +34,11 @@ impl Searcher {
         Ok(Self { concepts, index })
     }
 
-    pub fn search(&self, word: &str) -> Option<u64> {
-        self.index.get(word.as_bytes())
+    pub fn search(&self, word: &str) -> Result<Option<u64>> {
+        let pattern = format!("(?i){}", word);
+        let dfa = dense::Builder::new().anchored(true).build(&pattern)?;
+        let result = self.index.search(&dfa).into_stream().next().map(|i| i.1);
+        Ok(result)
     }
 
     pub fn fuzzy_search(

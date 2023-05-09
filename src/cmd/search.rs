@@ -24,7 +24,7 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
     let index = umls::search::Searcher::new(&dir)?;
 
     if args.fuzzy == 0 {
-        match index.search(&args.word) {
+        match index.search(&args.word)? {
             Some(w) => println!("Found {w}"),
             None => println!("Not found"),
         }

@@ -23,5 +23,6 @@ eyre = "0.6.8"
 flate2 = "1.0.26"
 fst = { version = "0.4.7", features = ["levenshtein"] }
 rayon = "1.7.0"
+regex-automata =  { version = "0.1.9", features = ["transducer"] }
 thiserror = "1.0.40"
 zip = "0.6.5"
