@@ -1,6 +1,7 @@
 mod build_index;
 mod extract;
 mod list;
+mod search;
 
 use std::path::PathBuf;
 
@@ -23,6 +24,7 @@ pub enum Command {
     List(list::ListArgs),
     Extract(extract::ExtractArgs),
     BuildIndex(build_index::BuildIndexArgs),
+    Search(search::SearchArgs),
 }
 
 pub fn run(args: Args) -> Result<()> {
@@ -36,6 +38,7 @@ pub fn run(args: Args) -> Result<()> {
     match args.command {
         Command::List(a) => list::run(files, a),
         Command::BuildIndex(a) => build_index::run(&dir, files, a),
+        Command::Search(a) => search::run(&dir, files, a),
         Command::Extract(_) => unreachable!(),
     }
 }

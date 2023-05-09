@@ -7,6 +7,8 @@ use fst::MapBuilder;
 
 use crate::files::Files;
 
+use super::{CONCEPTS_LST_NAME, STRINGS_FST_NAME};
+
 pub fn build_string_search(output_dir: &Path, files: &Files) -> Result<()> {
     let mut mrconso = files.get_file_stream("MRCONSO")?;
 
@@ -31,7 +33,7 @@ pub fn build_string_search(output_dir: &Path, files: &Files) -> Result<()> {
     }
 
     // Now that we have the strings sorted (since we're using a BTree) we can build the FST.
-    let output_fst_path = output_dir.join("umls_search.strings.fst");
+    let output_fst_path = output_dir.join(STRINGS_FST_NAME);
     let output_fst_writer = std::io::BufWriter::new(std::fs::File::create(&output_fst_path)?);
     let mut fst_builder = MapBuilder::new(output_fst_writer)?;
 
@@ -41,7 +43,7 @@ pub fn build_string_search(output_dir: &Path, files: &Files) -> Result<()> {
 
     fst_builder.finish()?;
 
-    let output_names_path = output_dir.join("umls_search.concepts.lst");
+    let output_names_path = output_dir.join(CONCEPTS_LST_NAME);
     let mut output_names_writer =
         std::io::BufWriter::new(std::fs::File::create(&output_names_path)?);
     let mut sorted_names = concept_to_number.into_iter().collect::<Vec<_>>();
