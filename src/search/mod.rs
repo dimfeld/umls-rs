@@ -34,6 +34,10 @@ impl Searcher {
         Ok(Self { concepts, index })
     }
 
+    pub fn concept_id(&self, id: u64) -> &str {
+        &self.concepts[id as usize]
+    }
+
     pub fn search(&self, word: &str) -> Result<Option<u64>> {
         let pattern = format!("(?i){}", word);
         let dfa = dense::Builder::new().anchored(true).build(&pattern)?;

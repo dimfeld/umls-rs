@@ -25,7 +25,7 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
 
     if args.fuzzy == 0 {
         match index.search(&args.word)? {
-            Some(w) => println!("Found {w}"),
+            Some(w) => println!("Found {}", index.concept_id(w)),
             None => println!("Not found"),
         }
     } else {
@@ -33,7 +33,11 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
         let mut found = false;
         while let Some((s, id, _)) = output.next() {
             found = true;
-            println!("{} - {}", std::str::from_utf8(s).unwrap(), id);
+            println!(
+                "{} - {}",
+                std::str::from_utf8(s).unwrap(),
+                index.concept_id(id)
+            );
         }
 
         if !found {
