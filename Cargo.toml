@@ -26,7 +26,9 @@ error-stack = { version = "0.3.1", features = ["eyre"] }
 eyre = "0.6.8"
 flate2 = "1.0.26"
 fst = { version = "0.4.7", features = ["levenshtein"] }
+itertools = "0.10.5"
 rayon = "1.7.0"
 regex-automata =  { version = "0.1.9", features = ["transducer"] }
+stringmetrics = "2.2.2"
 thiserror = "1.0.40"
 zip = "0.6.5"

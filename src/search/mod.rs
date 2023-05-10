@@ -7,6 +7,7 @@ use std::{
 };
 
 pub mod build;
+pub mod score;
 
 pub struct Searcher {
     pub concepts: Vec<String>,

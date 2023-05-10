@@ -3,7 +3,7 @@ use std::path::Path;
 use clap::Args;
 use eyre::Result;
 use fst::Streamer;
-use umls::files::Files;
+use umls::{files::Files, search::score::TrigramScorer};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
@@ -29,19 +29,24 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
             None => println!("Not found"),
         }
     } else {
+        let scorer = TrigramScorer::new(&args.word);
+
         let mut output = index.fuzzy_search(&args.word, args.fuzzy)?;
-        let mut found = false;
+        let mut results = Vec::new();
         while let Some((s, id, _)) = output.next() {
-            found = true;
-            println!(
-                "{} - {}",
-                std::str::from_utf8(s).unwrap(),
-                index.concept_id(id)
-            );
+            let found = std::str::from_utf8(s)?.to_string();
+            let score = scorer.score_word(&found);
+            results.push((score, id, found));
         }
 
-        if !found {
+        results.sort_by(|(ascore, _, _), (bscore, _, _)| bscore.total_cmp(ascore));
+
+        if results.is_empty() {
             println!("No results found");
+        } else {
+            for (score, id, s) in results {
+                println!("{s} ({score:.2}) - {}", index.concept_id(id));
+            }
         }
     }
 
