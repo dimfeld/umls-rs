@@ -1,7 +1,9 @@
 use eyre::Result;
 use fst::{IntoStreamer, Streamer};
 use regex_automata::dense;
+use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     io::{BufRead, Read},
     path::Path,
 };
@@ -9,16 +11,29 @@ use std::{
 pub mod build;
 pub mod score;
 
-pub struct Searcher {
-    pub concepts: Vec<String>,
-    pub index: fst::Map<Vec<u8>>,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SearchIndexMeta {
+    case_insensitive: bool,
+    languages: Vec<String>,
+    sources: Vec<String>,
 }
 
+pub struct Searcher {
+    pub meta: SearchIndexMeta,
+    concepts: Vec<String>,
+    index: fst::Map<Vec<u8>>,
+}
+
+const METADATA_NAME: &str = "umls_search.metadata.json";
 const STRINGS_FST_NAME: &str = "umls_search.strings.fst";
 const CONCEPTS_LST_NAME: &str = "umls_search.concepts.lst";
 
 impl Searcher {
     pub fn new(base_dir: &Path) -> Result<Searcher> {
+        let meta_path = base_dir.join(METADATA_NAME);
+        let meta_file = std::fs::File::open(meta_path)?;
+        let meta = serde_json::from_reader(meta_file)?;
+
         let concepts_lst_path = base_dir.join(CONCEPTS_LST_NAME);
 
         let concepts_file = std::fs::File::open(concepts_lst_path)?;
@@ -32,16 +47,39 @@ impl Searcher {
 
         let index = fst::Map::new(fst_contents)?;
 
-        Ok(Self { concepts, index })
+        Ok(Self {
+            meta,
+            concepts,
+            index,
+        })
     }
 
+    /// Get the string associated with an ID returned from the search function.
     pub fn concept_id(&self, id: u64) -> &str {
         &self.concepts[id as usize]
     }
 
+    /// Find a word in a case-insensitive fashion. For indexes built in case-insensitive mode,
+    /// this does a simple get. Otherwise it builds an automata that searches the index in a
+    /// case-insensitive fashion.
     pub fn search(&self, word: &str) -> Result<Option<u64>> {
-        let pattern = format!("(?i){}", word);
-        let dfa = dense::Builder::new().anchored(true).build(&pattern)?;
+        if self.meta.case_insensitive {
+            let word = word.to_lowercase();
+            Ok(self.search_exact(&word))
+        } else {
+            let pattern = format!("(?i){}", word);
+            self.search_regex(&pattern)
+        }
+    }
+
+    /// Find an exact match for the given word.
+    pub fn search_exact(&self, word: &str) -> Option<u64> {
+        self.index.get(word.as_bytes())
+    }
+
+    /// Search for a word using a regex pattern.
+    pub fn search_regex(&self, word: &str) -> Result<Option<u64>> {
+        let dfa = dense::Builder::new().anchored(true).build(word)?;
         let result = self.index.search(&dfa).into_stream().next().map(|i| i.1);
         Ok(result)
     }
@@ -51,7 +89,13 @@ impl Searcher {
         word: &str,
         levenshtein: u32,
     ) -> Result<fst::map::StreamWithState<'_, fst::automaton::Levenshtein>> {
-        let auto = fst::automaton::Levenshtein::new_with_limit(word, levenshtein, 1_000_000)?;
+        let word = if self.meta.case_insensitive {
+            Cow::Owned(word.to_lowercase())
+        } else {
+            Cow::Borrowed(word)
+        };
+
+        let auto = fst::automaton::Levenshtein::new_with_limit(&word, levenshtein, 1_000_000)?;
         Ok(self.index.search_with_state(auto).into_stream())
     }
 }
