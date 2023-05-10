@@ -3,7 +3,7 @@ use std::path::Path;
 use clap::Args;
 use eyre::Result;
 use fst::Streamer;
-use umls::{files::Files, search::score::TrigramScorer};
+use umls::{files::Files, search::score::jaccard_trigram_distance};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
@@ -29,13 +29,11 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
             None => println!("Not found"),
         }
     } else {
-        let scorer = TrigramScorer::new(&args.word);
-
         let mut output = index.fuzzy_search(&args.word, args.fuzzy)?;
         let mut results = Vec::new();
         while let Some((s, id, _)) = output.next() {
             let found = std::str::from_utf8(s)?.to_string();
-            let score = scorer.score_word(&found);
+            let score = jaccard_trigram_distance(&args.word, &found);
             results.push((score, id, found));
         }
 
