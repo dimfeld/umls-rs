@@ -1,6 +1,7 @@
 mod build_index;
 mod extract;
-mod list;
+mod list_files;
+mod list_sources;
 mod search;
 
 use std::path::PathBuf;
@@ -21,7 +22,8 @@ pub struct Args {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    List(list::ListArgs),
+    ListFiles(list_files::ListFilesArgs),
+    ListSources(list_sources::ListSourcesArgs),
     Extract(extract::ExtractArgs),
     BuildIndex(build_index::BuildIndexArgs),
     Search(search::SearchArgs),
@@ -36,7 +38,8 @@ pub fn run(args: Args) -> Result<()> {
 
     let files = Files::new(&dir)?;
     match args.command {
-        Command::List(a) => list::run(files, a),
+        Command::ListFiles(a) => list_files::run(files, a),
+        Command::ListSources(a) => list_sources::run(files, a),
         Command::BuildIndex(a) => build_index::run(&dir, files, a),
         Command::Search(a) => search::run(&dir, files, a),
         Command::Extract(_) => unreachable!(),

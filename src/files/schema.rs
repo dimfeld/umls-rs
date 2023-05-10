@@ -17,8 +17,43 @@ pub struct Column {
     pub description: String,
 }
 
+#[derive(Debug)]
+pub struct UmlsSource {
+    pub name: String,
+    pub family: String,
+    pub language: String,
+    pub abbreviation: String,
+}
+
 impl Files {
-    pub fn read_schema_descriptions(&mut self) -> Result<Vec<FileDescription>> {
+    pub fn read_sources(&self) -> Result<Vec<UmlsSource>> {
+        let mut mrsab = self.get_file_stream("MRSAB")?;
+        let mut sources = Vec::new();
+
+        let son_idx = mrsab.columns.iter().position(|c| c == "SON").unwrap();
+        let lat_idx = mrsab.columns.iter().position(|c| c == "LAT").unwrap();
+        let fam_idx = mrsab.columns.iter().position(|c| c == "SF").unwrap();
+        let rsab_idx = mrsab.columns.iter().position(|c| c == "RSAB").unwrap();
+
+        for line in mrsab.reader.records() {
+            let line = line?;
+            let son = line.get(son_idx).unwrap();
+            let lat = line.get(lat_idx).unwrap();
+            let fam = line.get(fam_idx).unwrap();
+            let rsab = line.get(rsab_idx).unwrap();
+
+            sources.push(UmlsSource {
+                name: son.to_string(),
+                family: fam.to_string(),
+                language: lat.to_string(),
+                abbreviation: rsab.to_string(),
+            })
+        }
+
+        Ok(sources)
+    }
+
+    pub fn read_schema_descriptions(&self) -> Result<Vec<FileDescription>> {
         let mut column_descs = HashMap::new();
 
         {

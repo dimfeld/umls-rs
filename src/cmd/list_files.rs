@@ -3,12 +3,12 @@ use eyre::Result;
 use umls::files::Files;
 
 #[derive(Debug, Args)]
-pub struct ListArgs {
+pub struct ListFilesArgs {
     #[arg(short, long, help = "Print the columns descriptions for each file")]
     schema: bool,
 }
 
-pub fn run(mut files: Files, args: ListArgs) -> Result<()> {
+pub fn run(files: Files, args: ListFilesArgs) -> Result<()> {
     let schema = files.read_schema_descriptions()?;
 
     for file in schema {
