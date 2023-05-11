@@ -7,23 +7,19 @@ use umls::{files::Files, index::score::jaccard_trigram_distance};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
-    #[clap(help = "The path to the index directory")]
+    /// The path to the index directory
     pub word: String,
 
-    #[clap(
-        short = 'f',
-        long = "fuzzy",
-        default_value_t = 0,
-        help = "The maximum Levenshtein distance to search for"
-    )]
+    /// The maximum Levenshtein distance to search for
+    #[clap(short = 'f', long = "fuzzy", default_value_t = 0)]
     pub fuzzy: u32,
 
-    #[clap(
-        short = 's',
-        long = "score-threshold",
-        default_value_t = 0.7,
-        help = "The minimum score, using Jaccard trigram similarity, when performing fuzzy search"
-    )]
+    /// Show output in long format
+    #[clap(short = 'l', long = "long")]
+    pub long: bool,
+
+    /// The minimum score, using Jaccard trigram similarity, when performing fuzzy search
+    #[clap(short = 't', long = "score-threshold", default_value_t = 0.7)]
     pub score_threshold: f32,
 }
 
@@ -37,16 +33,35 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
             Some(w) => {
                 let duration = start_time.elapsed();
                 let concept = index.concept_id(w);
-                println!(
-                    "Found ({}us) {} - {}",
-                    duration.as_micros(),
-                    concept.cui,
-                    concept.preferred_name
-                );
-
-                if !concept.codes.is_empty() {
-                    println!("Codes: {:?}", concept.codes);
+                if args.long {
+                    println!(
+                        "Found in {}us\n{} - {}",
+                        duration.as_micros(),
+                        concept.cui,
+                        concept.preferred_name
+                    );
+                    if !concept.codes.is_empty() {
+                        println!("Codes:");
+                        for code in &concept.codes {
+                            println!("  {}: {}", code.source, code.code);
+                        }
+                    }
+                } else {
+                    println!(
+                        "Found ({}us) {} - {}",
+                        duration.as_micros(),
+                        concept.cui,
+                        concept.preferred_name
+                    );
+                    if !concept.codes.is_empty() {
+                        print!("Codes:");
+                        for code in &concept.codes {
+                            print!(" ({}, {})", code.source, code.code);
+                        }
+                    }
                 }
+
+                println!();
             }
             None => println!("Not found"),
         }

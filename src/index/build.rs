@@ -152,7 +152,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         .collect::<Vec<_>>();
     sorted_names.sort_unstable_by_key(|(id, _)| *id);
 
-    for (_, concept) in &sorted_names {
+    for (_, mut concept) in sorted_names {
+        concept.codes.sort_unstable();
         serde_json::to_writer(&mut output_names_writer, &concept)?;
         writeln!(output_names_writer)?;
     }

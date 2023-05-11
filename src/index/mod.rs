@@ -21,7 +21,7 @@ pub struct SearchIndexMeta {
     pub sources: Vec<SmolStr>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConceptCode {
     pub source: SmolStr,
     pub code: SmolStr,
