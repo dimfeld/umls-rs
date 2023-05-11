@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, io::Write};
 
 use ahash::{HashMap, HashMapExt};
 use eyre::Result;
+use flate2::write::GzEncoder;
 use fst::MapBuilder;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
@@ -121,8 +122,10 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     fst_builder.finish()?;
 
     let output_names_path = output_dir.join(CONCEPTS_LST_NAME);
-    let mut output_names_writer =
-        std::io::BufWriter::new(std::fs::File::create(&output_names_path)?);
+    let mut output_names_writer = GzEncoder::new(
+        std::io::BufWriter::new(std::fs::File::create(&output_names_path)?),
+        flate2::Compression::default(),
+    );
     let mut sorted_names = concepts
         .into_iter()
         .map(|(_, (id, _, concept))| (id, concept))
@@ -134,7 +137,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         writeln!(output_names_writer)?;
     }
 
-    output_names_writer.into_inner()?.flush()?;
+    let buf_writer = output_names_writer.finish()?;
+    buf_writer.into_inner()?.flush()?;
 
     let meta = SearchIndexMeta {
         case_insensitive,

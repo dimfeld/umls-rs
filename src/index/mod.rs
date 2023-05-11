@@ -1,4 +1,5 @@
 use eyre::Result;
+use flate2::read::GzDecoder;
 use fst::{IntoStreamer, Streamer};
 use regex_automata::dense;
 use serde::{Deserialize, Serialize};
@@ -42,7 +43,7 @@ pub struct Index {
 
 const METADATA_NAME: &str = "umls_search.metadata.json";
 const STRINGS_FST_NAME: &str = "umls_search.strings.fst";
-const CONCEPTS_LST_NAME: &str = "umls_search.concepts.ndjson";
+const CONCEPTS_LST_NAME: &str = "umls_search.concepts.ndjson.gz";
 
 impl Index {
     pub fn new(base_dir: &Path) -> Result<Index> {
@@ -53,7 +54,7 @@ impl Index {
         let concepts_lst_path = base_dir.join(CONCEPTS_LST_NAME);
 
         let concepts_file = std::fs::File::open(concepts_lst_path)?;
-        let concepts_reader = std::io::BufReader::new(concepts_file);
+        let concepts_reader = std::io::BufReader::new(GzDecoder::new(concepts_file));
         let concepts = concepts_reader
             .lines()
             .map(|line| Ok::<Concept, eyre::Report>(serde_json::from_str(&line?)?))
