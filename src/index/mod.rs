@@ -2,6 +2,8 @@ use eyre::Result;
 use fst::{IntoStreamer, Streamer};
 use regex_automata::dense;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use smol_str::SmolStr;
 use std::{
     borrow::Cow,
     io::{BufRead, Read},
@@ -13,14 +15,28 @@ pub mod score;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SearchIndexMeta {
-    case_insensitive: bool,
-    languages: Vec<String>,
-    sources: Vec<String>,
+    pub case_insensitive: bool,
+    pub languages: Vec<SmolStr>,
+    pub sources: Vec<SmolStr>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Concept {
+    pub cui: SmolStr,
+    pub preferred_name: SmolStr,
+    pub types: SmallVec<[u16; 4]>,
+}
+
+pub struct SemanticType {
+    pub tui: SmolStr,
+    pub name: SmolStr,
+    pub tree_number: SmolStr,
+    pub description: String,
 }
 
 pub struct Index {
     pub meta: SearchIndexMeta,
-    concepts: Vec<String>,
+    concepts: Vec<Concept>,
     index: fst::Map<Vec<u8>>,
 }
 
@@ -38,7 +54,10 @@ impl Index {
 
         let concepts_file = std::fs::File::open(concepts_lst_path)?;
         let concepts_reader = std::io::BufReader::new(concepts_file);
-        let concepts = concepts_reader.lines().collect::<Result<Vec<_>, _>>()?;
+        let concepts = concepts_reader
+            .lines()
+            .map(|line| Ok::<Concept, eyre::Report>(serde_json::from_str(&line?)?))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let strings_fst_path = base_dir.join(STRINGS_FST_NAME);
         let mut strings = std::fs::File::open(strings_fst_path)?;
@@ -55,7 +74,7 @@ impl Index {
     }
 
     /// Get the string associated with an ID returned from the search function.
-    pub fn concept_id(&self, id: u64) -> &str {
+    pub fn concept_id(&self, id: u64) -> &Concept {
         &self.concepts[id as usize]
     }
 

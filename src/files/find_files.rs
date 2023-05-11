@@ -21,12 +21,10 @@ fn recurse_dirs(base_dir: PathBuf, current_depth: usize) -> Result<Option<PathBu
     }
 
     let contents = std::fs::read_dir(&base_dir)?;
-    for entry in contents {
-        if let Ok(entry) = entry {
-            if entry.metadata()?.is_dir() {
-                if let Some(path) = recurse_dirs(entry.path(), current_depth + 1)? {
-                    return Ok(Some(path));
-                }
+    for entry in contents.flatten() {
+        if entry.metadata()?.is_dir() {
+            if let Some(path) = recurse_dirs(entry.path(), current_depth + 1)? {
+                return Ok(Some(path));
             }
         }
     }
@@ -36,13 +34,9 @@ fn recurse_dirs(base_dir: PathBuf, current_depth: usize) -> Result<Option<PathBu
 
 fn contains_rrf_files(path: &Path) -> Result<bool> {
     let contents = std::fs::read_dir(path)?;
-    for entry in contents {
-        if let Ok(entry) = entry {
-            if entry.file_name().to_string_lossy().ends_with("RRF.gz") {
-                return Ok(true);
-            }
-        }
-    }
+    let found = contents
+        .flatten()
+        .any(|entry| entry.file_name().to_string_lossy().ends_with("RRF.gz"));
 
-    return Ok(false);
+    Ok(found)
 }

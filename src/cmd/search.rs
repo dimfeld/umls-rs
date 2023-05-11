@@ -25,7 +25,10 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
 
     if args.fuzzy == 0 {
         match index.search(&args.word)? {
-            Some(w) => println!("Found {}", index.concept_id(w)),
+            Some(w) => {
+                let concept = index.concept_id(w);
+                println!("Found {} - {}", concept.cui, concept.preferred_name)
+            }
             None => println!("Not found"),
         }
     } else {
@@ -43,7 +46,11 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
             println!("No results found");
         } else {
             for (score, id, s) in results {
-                println!("{s} ({score:.2}) - {}", index.concept_id(id));
+                let concept = index.concept_id(id);
+                println!(
+                    "{s} ({score:.2}) - {} - {}",
+                    concept.cui, concept.preferred_name
+                );
             }
         }
     }

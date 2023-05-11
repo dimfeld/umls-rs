@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 use eyre::Result;
+use smol_str::SmolStr;
 use umls::{
     files::Files,
     index::build::{build_index, IndexBuilderOptions},
@@ -19,11 +20,11 @@ pub struct BuildIndexArgs {
 
     /// The source abbreviations (SAB field) to include in the index. If empty, all sources are included.
     #[arg(short, long, env)]
-    pub sources: Vec<String>,
+    pub sources: Vec<SmolStr>,
 
     /// The languages (LAT field) to include in the index. If empty, all sources are included.
     #[arg(short, long, env)]
-    pub languages: Vec<String>,
+    pub languages: Vec<SmolStr>,
 }
 
 pub fn run(base_dir: &Path, files: Files, args: BuildIndexArgs) -> Result<()> {
