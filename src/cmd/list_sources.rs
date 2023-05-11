@@ -6,7 +6,9 @@ use umls::files::Files;
 pub struct ListSourcesArgs {}
 
 pub fn run(files: Files, _args: ListSourcesArgs) -> Result<()> {
-    let sources = files.read_sources()?;
+    let mut sources = files.read_sources()?;
+
+    sources.sort_by(|a, b| a.abbreviation.cmp(&b.abbreviation));
 
     for source in sources {
         println!(
