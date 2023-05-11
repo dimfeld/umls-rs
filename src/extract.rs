@@ -13,7 +13,7 @@ pub fn extract_metathesaurus<'a>(mut input_path: &'a Path, output_path: &'a Path
 
     let containers = std::fs::read_dir(input_path)?
         .filter_map(|path| path.ok())
-        .filter(|path| path.file_name().to_string_lossy().ends_with("-meta.nlm"));
+        .filter(|path| path.file_name().to_string_lossy().ends_with(".nlm"));
 
     // Extract the data out to get the GZ files.
     for container in containers {
