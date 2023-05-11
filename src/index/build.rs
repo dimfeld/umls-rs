@@ -20,7 +20,7 @@ pub struct IndexBuilderOptions<'a> {
     pub sources: Vec<String>,
 }
 
-pub fn build_string_search(options: IndexBuilderOptions) -> Result<()> {
+pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     let IndexBuilderOptions {
         output_dir,
         files,

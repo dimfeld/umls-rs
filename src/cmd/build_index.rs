@@ -4,7 +4,7 @@ use clap::Args;
 use eyre::Result;
 use umls::{
     files::Files,
-    search::build::{build_string_search, IndexBuilderOptions},
+    index::build::{build_index, IndexBuilderOptions},
 };
 
 #[derive(Args, Debug)]
@@ -34,7 +34,7 @@ pub fn run(base_dir: &Path, files: Files, args: BuildIndexArgs) -> Result<()> {
 
     std::fs::create_dir(&output)?;
 
-    build_string_search(IndexBuilderOptions {
+    build_index(IndexBuilderOptions {
         output_dir: &output,
         files: &files,
         case_insensitive: args.case_insensitive,

@@ -18,7 +18,7 @@ pub struct SearchIndexMeta {
     sources: Vec<String>,
 }
 
-pub struct Searcher {
+pub struct Index {
     pub meta: SearchIndexMeta,
     concepts: Vec<String>,
     index: fst::Map<Vec<u8>>,
@@ -28,8 +28,8 @@ const METADATA_NAME: &str = "umls_search.metadata.json";
 const STRINGS_FST_NAME: &str = "umls_search.strings.fst";
 const CONCEPTS_LST_NAME: &str = "umls_search.concepts.lst";
 
-impl Searcher {
-    pub fn new(base_dir: &Path) -> Result<Searcher> {
+impl Index {
+    pub fn new(base_dir: &Path) -> Result<Index> {
         let meta_path = base_dir.join(METADATA_NAME);
         let meta_file = std::fs::File::open(meta_path)?;
         let meta = serde_json::from_reader(meta_file)?;

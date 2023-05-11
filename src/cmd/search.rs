@@ -3,7 +3,7 @@ use std::path::Path;
 use clap::Args;
 use eyre::Result;
 use fst::Streamer;
-use umls::{files::Files, search::score::jaccard_trigram_distance};
+use umls::{files::Files, index::score::jaccard_trigram_distance};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
@@ -21,7 +21,7 @@ pub struct SearchArgs {
 
 pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
     let dir = base_dir.join("index");
-    let index = umls::search::Searcher::new(&dir)?;
+    let index = umls::index::Index::new(&dir)?;
 
     if args.fuzzy == 0 {
         match index.search(&args.word)? {
