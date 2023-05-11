@@ -10,7 +10,7 @@ use smol_str::SmolStr;
 
 use crate::files::Files;
 
-use super::{Concept, SearchIndexMeta, METADATA_NAME};
+use super::{Concept, ConceptCode, SearchIndexMeta, METADATA_NAME};
 use super::{CONCEPTS_LST_NAME, STRINGS_FST_NAME};
 
 pub struct IndexBuilderOptions<'a> {
@@ -41,6 +41,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     let str_idx = mrconso.columns.iter().position(|c| c == "STR").unwrap();
     let tty_idx = mrconso.columns.iter().position(|c| c == "TTY").unwrap();
     let source_idx = mrconso.columns.iter().position(|c| c == "SAB").unwrap();
+    let code_idx = mrconso.columns.iter().position(|c| c == "CODE").unwrap();
 
     // First build the lookups. We just do this in memory since in there are expected to be a few
     // tens of millions of strings.
@@ -50,6 +51,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     for line in mrconso.reader.records() {
         let line = line?;
         let cui = line.get(cui_idx).unwrap();
+        let code = line.get(code_idx).unwrap();
+        let source = line.get(source_idx).unwrap();
         let orig_string = SmolStr::from(line.get(str_idx).unwrap());
 
         let string = if case_insensitive {
@@ -65,11 +68,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
             }
         }
 
-        if !sources.is_empty() {
-            let source = line.get(source_idx).unwrap();
-            if !sources.iter().any(|s| s == source) {
-                continue;
-            }
+        if !sources.is_empty() && !sources.iter().any(|s| s == source) {
+            continue;
         }
 
         let next_id = (concepts.len()) as u32;
@@ -78,10 +78,21 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
             .and_modify(|(_, existing_priority, concept)| {
                 let new_priority = *ranks
                     .get(&RankSource {
-                        sab: line.get(source_idx).unwrap().into(),
+                        sab: source.into(),
                         tty: line.get(tty_idx).unwrap().into(),
                     })
                     .unwrap_or(&0);
+
+                if !code.is_empty() {
+                    let concept_code = ConceptCode {
+                        source: source.into(),
+                        code: code.into(),
+                    };
+
+                    if !concept.codes.contains(&concept_code) {
+                        concept.codes.push(concept_code);
+                    }
+                }
 
                 if new_priority > *existing_priority {
                     *existing_priority = new_priority;
@@ -89,12 +100,20 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                 }
             })
             .or_insert_with(|| {
-                let string_priority = *ranks
-                    .get(&RankSource {
-                        sab: line.get(source_idx).unwrap().into(),
-                        tty: line.get(tty_idx).unwrap().into(),
-                    })
-                    .unwrap_or(&0);
+                let source = SmolStr::from(source);
+                let rank_source_arg = RankSource {
+                    sab: source,
+                    tty: line.get(tty_idx).unwrap().into(),
+                };
+                let string_priority = *ranks.get(&rank_source_arg).unwrap_or(&0);
+
+                let mut codes = SmallVec::new();
+                if !code.is_empty() {
+                    codes.push(ConceptCode {
+                        source: rank_source_arg.sab,
+                        code: code.into(),
+                    });
+                }
 
                 (
                     next_id,
@@ -102,6 +121,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                     Concept {
                         cui: cui.into(),
                         preferred_name: orig_string,
+                        codes,
                         types: SmallVec::new(), // TODO....
                     },
                 )

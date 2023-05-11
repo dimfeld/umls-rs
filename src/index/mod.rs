@@ -21,11 +21,18 @@ pub struct SearchIndexMeta {
     pub sources: Vec<SmolStr>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct ConceptCode {
+    pub source: SmolStr,
+    pub code: SmolStr,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Concept {
     pub cui: SmolStr,
     pub preferred_name: SmolStr,
     pub types: SmallVec<[u16; 4]>,
+    pub codes: SmallVec<[ConceptCode; 4]>,
 }
 
 pub struct SemanticType {

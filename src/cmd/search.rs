@@ -42,7 +42,11 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                     duration.as_micros(),
                     concept.cui,
                     concept.preferred_name
-                )
+                );
+
+                if !concept.codes.is_empty() {
+                    println!("Codes: {:?}", concept.codes);
+                }
             }
             None => println!("Not found"),
         }
@@ -70,6 +74,9 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                     "{s} ({score:.2}) - {} - {}",
                     concept.cui, concept.preferred_name
                 );
+                if !concept.codes.is_empty() {
+                    println!("  Codes: {:?}", concept.codes);
+                }
             }
         }
     }
