@@ -123,6 +123,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                         preferred_name: orig_string,
                         codes,
                         types: SmallVec::new(), // TODO....
+                        parents: SmallVec::new(),
+                        children: SmallVec::new(),
                     },
                 )
             });
@@ -152,6 +154,8 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         .collect::<Vec<_>>();
     sorted_names.sort_unstable_by_key(|(id, _)| *id);
 
+    build_relationships(files, sorted_names.as_mut())?;
+
     for (_, mut concept) in sorted_names {
         concept.codes.sort_unstable();
         serde_json::to_writer(&mut output_names_writer, &concept)?;
@@ -170,6 +174,59 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     let mut meta_file = std::fs::File::create(output_dir.join(METADATA_NAME))?;
     serde_json::to_writer(&meta_file, &meta)?;
     meta_file.flush()?;
+
+    Ok(())
+}
+
+/// Take the sorted list of concepts and add relationship data to it.
+/// This modifies `concepts` in place.
+fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result<()> {
+    let by_cui = concepts
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (c.1.cui.clone(), i))
+        .collect::<HashMap<_, _>>();
+
+    let mut mrrel = files.get_file_stream("MRREL")?;
+    let cui_idx = mrrel.columns.iter().position(|c| c == "CUI1").unwrap();
+    let rel_idx = mrrel.columns.iter().position(|c| c == "REL").unwrap();
+    let cui2_idx = mrrel.columns.iter().position(|c| c == "CUI2").unwrap();
+
+    for line in mrrel.reader.records() {
+        let line = line?;
+        let cui1 = line.get(cui_idx).unwrap();
+        let rel = line.get(rel_idx).unwrap();
+        let cui2 = line.get(cui2_idx).unwrap();
+
+        if rel != "PAR" && rel != "CHD" || (cui1 == cui2) {
+            continue;
+        }
+
+        let (i1, i2) = match by_cui.get(cui1).zip(by_cui.get(cui2)) {
+            Some((i1, i2)) => (*i1 as u32, *i2 as u32),
+            None => continue,
+        };
+
+        let is_parent = rel == "PAR";
+
+        {
+            let concept1 = &mut concepts[i1 as usize].1;
+            if is_parent && !concept1.parents.contains(&i2) {
+                concept1.parents.push(i2);
+            } else if !is_parent && !concept1.children.contains(&i2) {
+                concept1.children.push(i2);
+            }
+        }
+
+        {
+            let concept2 = &mut concepts[i2 as usize].1;
+            if is_parent && !concept2.children.contains(&i1) {
+                concept2.children.push(i1);
+            } else if !is_parent && !concept2.parents.contains(&i1) {
+                concept2.parents.push(i1);
+            }
+        }
+    }
 
     Ok(())
 }

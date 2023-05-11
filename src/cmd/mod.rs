@@ -3,6 +3,7 @@ mod extract;
 mod list_files;
 mod list_sources;
 mod search;
+mod stats;
 
 use std::path::PathBuf;
 
@@ -27,6 +28,7 @@ pub enum Command {
     Extract(extract::ExtractArgs),
     BuildIndex(build_index::BuildIndexArgs),
     Search(search::SearchArgs),
+    Stats,
 }
 
 pub fn run(args: Args) -> Result<()> {
@@ -42,6 +44,7 @@ pub fn run(args: Args) -> Result<()> {
         Command::ListSources(a) => list_sources::run(files, a),
         Command::BuildIndex(a) => build_index::run(&dir, files, a),
         Command::Search(a) => search::run(&dir, files, a),
+        Command::Stats => stats::run(&dir, files),
         Command::Extract(_) => unreachable!(),
     }
 }

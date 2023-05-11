@@ -46,6 +46,25 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                             println!("  {}: {}", code.source, code.code);
                         }
                     }
+
+                    if !concept.parents.is_empty() {
+                        println!("Parents:");
+                        for parent in &concept.parents {
+                            let parent_concept = &index.concepts[*parent as usize];
+                            println!(
+                                "  {} - {}",
+                                parent_concept.cui, parent_concept.preferred_name
+                            );
+                        }
+                    }
+
+                    if !concept.children.is_empty() {
+                        println!("Children:");
+                        for child in &concept.children {
+                            let child_concept = &index.concepts[*child as usize];
+                            println!("  {} - {}", child_concept.cui, child_concept.preferred_name);
+                        }
+                    }
                 } else {
                     println!(
                         "Found ({}us) {} - {}",

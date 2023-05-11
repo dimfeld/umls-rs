@@ -33,6 +33,8 @@ pub struct Concept {
     pub preferred_name: SmolStr,
     pub types: SmallVec<[u16; 4]>,
     pub codes: SmallVec<[ConceptCode; 4]>,
+    pub parents: SmallVec<[u32; 4]>,
+    pub children: SmallVec<[u32; 4]>,
 }
 
 pub struct SemanticType {
@@ -44,7 +46,7 @@ pub struct SemanticType {
 
 pub struct Index {
     pub meta: SearchIndexMeta,
-    concepts: Vec<Concept>,
+    pub concepts: Vec<Concept>,
     index: fst::Map<Vec<u8>>,
 }
 
