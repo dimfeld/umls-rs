@@ -48,19 +48,20 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     let mut string_to_number = BTreeMap::new();
     let mut concepts: HashMap<SmolStr, (u32, u32, Concept)> = HashMap::new();
 
+    let convert_for_search = if case_insensitive {
+        |s: &str| s.to_lowercase()
+    } else {
+        |s: &str| s.to_string()
+    };
+
     for line in mrconso.reader.records() {
         let line = line?;
         let cui = line.get(cui_idx).unwrap();
         let code = line.get(code_idx).unwrap();
         let source = line.get(source_idx).unwrap();
-        let orig_string = SmolStr::from(line.get(str_idx).unwrap());
+        let orig_string = line.get(str_idx).unwrap();
 
-        let string = if case_insensitive {
-            orig_string.to_lowercase()
-        } else {
-            orig_string.to_string()
-        };
-
+        let string = convert_for_search(orig_string);
         if !languages.is_empty() {
             let lang = line.get(lang_idx).unwrap();
             if !languages.iter().any(|l| l == lang) {
@@ -96,7 +97,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
 
                 if new_priority > *existing_priority {
                     *existing_priority = new_priority;
-                    concept.preferred_name = orig_string.clone();
+                    concept.preferred_name = SmolStr::from(orig_string);
                 }
             })
             .or_insert_with(|| {
@@ -115,12 +116,15 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                     });
                 }
 
+                // Add the CUI to the search index too.
+                string_to_number.insert(convert_for_search(cui), next_id);
+
                 (
                     next_id,
                     string_priority,
                     Concept {
                         cui: cui.into(),
-                        preferred_name: orig_string,
+                        preferred_name: SmolStr::from(orig_string),
                         codes,
                         types: SmallVec::new(), // TODO....
                         parents: SmallVec::new(),
