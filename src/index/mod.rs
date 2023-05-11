@@ -42,7 +42,7 @@ pub struct Index {
 
 const METADATA_NAME: &str = "umls_search.metadata.json";
 const STRINGS_FST_NAME: &str = "umls_search.strings.fst";
-const CONCEPTS_LST_NAME: &str = "umls_search.concepts.lst";
+const CONCEPTS_LST_NAME: &str = "umls_search.concepts.ndjson";
 
 impl Index {
     pub fn new(base_dir: &Path) -> Result<Index> {

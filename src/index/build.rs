@@ -71,43 +71,42 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
             }
         }
 
-        string_to_number.entry(string).or_insert_with(|| {
-            let next_id = (concepts.len()) as u32;
-            let (concept_number, _, _) = concepts
-                .entry(cui.into())
-                .and_modify(|(_, existing_priority, concept)| {
-                    let new_priority = *ranks
-                        .get(&RankSource {
-                            sab: line.get(source_idx).unwrap().into(),
-                            tty: line.get(tty_idx).unwrap().into(),
-                        })
-                        .unwrap_or(&0);
+        let next_id = (concepts.len()) as u32;
+        let (concept_number, _, _) = *concepts
+            .entry(cui.into())
+            .and_modify(|(_, existing_priority, concept)| {
+                let new_priority = *ranks
+                    .get(&RankSource {
+                        sab: line.get(source_idx).unwrap().into(),
+                        tty: line.get(tty_idx).unwrap().into(),
+                    })
+                    .unwrap_or(&0);
 
-                    if new_priority > *existing_priority {
-                        *existing_priority = new_priority;
-                        concept.preferred_name = orig_string.clone();
-                    }
-                })
-                .or_insert_with(|| {
-                    let string_priority = *ranks
-                        .get(&RankSource {
-                            sab: line.get(source_idx).unwrap().into(),
-                            tty: line.get(tty_idx).unwrap().into(),
-                        })
-                        .unwrap_or(&0);
+                if new_priority > *existing_priority {
+                    *existing_priority = new_priority;
+                    concept.preferred_name = orig_string.clone();
+                }
+            })
+            .or_insert_with(|| {
+                let string_priority = *ranks
+                    .get(&RankSource {
+                        sab: line.get(source_idx).unwrap().into(),
+                        tty: line.get(tty_idx).unwrap().into(),
+                    })
+                    .unwrap_or(&0);
 
-                    (
-                        next_id,
-                        string_priority,
-                        Concept {
-                            cui: cui.into(),
-                            preferred_name: orig_string,
-                            types: SmallVec::new(), // TODO....
-                        },
-                    )
-                });
-            *concept_number
-        });
+                (
+                    next_id,
+                    string_priority,
+                    Concept {
+                        cui: cui.into(),
+                        preferred_name: orig_string,
+                        types: SmallVec::new(), // TODO....
+                    },
+                )
+            });
+
+        string_to_number.entry(string).or_insert(concept_number);
     }
 
     // Now that we have the strings sorted (since we're using a BTree) we can build the FST.
@@ -169,7 +168,7 @@ fn read_ranks(files: &Files) -> Result<HashMap<RankSource, u32>> {
         .records()
         .map(|line| {
             let line = line?;
-            let rank = line.get(rank_idx).unwrap().parse::<u32>().unwrap();
+            let rank = line.get(rank_idx).unwrap().parse::<u32>()?;
             let sab = line.get(sab_idx).unwrap();
             let tty = line.get(tty_idx).unwrap();
 
