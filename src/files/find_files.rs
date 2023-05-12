@@ -36,7 +36,7 @@ fn contains_rrf_files(path: &Path) -> Result<bool> {
     let contents = std::fs::read_dir(path)?;
     let found = contents
         .flatten()
-        .any(|entry| entry.file_name().to_string_lossy().ends_with("RRF.gz"));
+        .any(|entry| entry.file_name().to_string_lossy() == "META");
 
     Ok(found)
 }

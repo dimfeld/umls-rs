@@ -35,7 +35,7 @@ impl Files {
         let fam_idx = mrsab.columns.iter().position(|c| c == "SF").unwrap();
         let rsab_idx = mrsab.columns.iter().position(|c| c == "RSAB").unwrap();
 
-        for line in mrsab.reader.records() {
+        for line in mrsab.records() {
             let line = line?;
             let son = line.get(son_idx).unwrap();
             let lat = line.get(lat_idx).unwrap();
@@ -59,7 +59,7 @@ impl Files {
         {
             let mut mrcols = self.get_file_stream("MRCOLS")?;
 
-            for line in mrcols.reader.records() {
+            for line in mrcols.records() {
                 let line = line?;
                 let col_name = line.get(0).unwrap_or_default();
                 let desc = line.get(1).unwrap_or_default();
@@ -74,7 +74,7 @@ impl Files {
 
         let mut mrfiles = self.get_file_stream("MRFILES")?;
         let mut files = Vec::new();
-        for line in mrfiles.reader.records() {
+        for line in mrfiles.records() {
             let line = line?;
             let filename = line.get(0).unwrap_or_default().to_string();
             let description = line.get(1).unwrap_or_default();

@@ -3,6 +3,7 @@ use std::path::Path;
 use clap::Args;
 use eyre::Result;
 use fst::Streamer;
+use smol_str::SmolStr;
 use umls::{files::Files, index::score::jaccard_trigram_distance};
 
 #[derive(Args, Debug)]
@@ -17,6 +18,10 @@ pub struct SearchArgs {
     /// Show output in long format
     #[clap(short = 'l', long = "long")]
     pub long: bool,
+
+    /// Show these code sources
+    #[clap(short = 'c', long = "code-source")]
+    pub code_types: Vec<SmolStr>,
 
     /// The minimum score, using Jaccard trigram similarity, when performing fuzzy search
     #[clap(short = 't', long = "score-threshold", default_value_t = 0.7)]
@@ -40,10 +45,12 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                         concept.cui,
                         concept.preferred_name
                     );
+
                     if !concept.codes.is_empty() {
                         println!("Codes:");
-                        for code in &concept.codes {
-                            println!("  {}: {}", code.source, code.code);
+                        for (code_concept_id, code) in index.downstream_codes(w as u32, &args.code_types) {
+                            let code_concept = &index.concepts[code_concept_id];
+                            println!("  {} {}: {}", code_concept.cui, code.source, code.code);
                         }
                     }
 

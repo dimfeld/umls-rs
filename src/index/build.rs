@@ -54,7 +54,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         |s: &str| s.to_string()
     };
 
-    for line in mrconso.reader.records() {
+    for line in mrconso.records() {
         let line = line?;
         let cui = line.get(cui_idx).unwrap();
         let code = line.get(code_idx).unwrap();
@@ -196,13 +196,16 @@ fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result
     let rel_idx = mrrel.columns.iter().position(|c| c == "REL").unwrap();
     let cui2_idx = mrrel.columns.iter().position(|c| c == "CUI2").unwrap();
 
-    for line in mrrel.reader.records() {
+    for line in mrrel.records() {
         let line = line?;
         let cui1 = line.get(cui_idx).unwrap();
         let rel = line.get(rel_idx).unwrap();
         let cui2 = line.get(cui2_idx).unwrap();
 
-        if rel != "PAR" && rel != "CHD" || (cui1 == cui2) {
+        let is_parent = rel == "PAR" || rel == "RB";
+        let is_child = rel == "CHD" || rel == "RN";
+
+        if (!is_parent && !is_child) || (cui1 == cui2) {
             continue;
         }
 
@@ -211,13 +214,11 @@ fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result
             None => continue,
         };
 
-        let is_parent = rel == "PAR";
-
         {
             let concept1 = &mut concepts[i1 as usize].1;
             if is_parent && !concept1.parents.contains(&i2) {
                 concept1.parents.push(i2);
-            } else if !is_parent && !concept1.children.contains(&i2) {
+            } else if is_child && !concept1.children.contains(&i2) {
                 concept1.children.push(i2);
             }
         }
@@ -226,7 +227,7 @@ fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result
             let concept2 = &mut concepts[i2 as usize].1;
             if is_parent && !concept2.children.contains(&i1) {
                 concept2.children.push(i1);
-            } else if !is_parent && !concept2.parents.contains(&i1) {
+            } else if is_child && !concept2.parents.contains(&i1) {
                 concept2.parents.push(i1);
             }
         }
@@ -250,7 +251,6 @@ fn read_ranks(files: &Files) -> Result<HashMap<RankSource, u32>> {
     let tty_idx = mrrank.columns.iter().position(|c| c == "TTY").unwrap();
 
     let ranks = mrrank
-        .reader
         .records()
         .map(|line| {
             let line = line?;

@@ -127,4 +127,86 @@ impl Index {
         let auto = fst::automaton::Levenshtein::new_with_limit(&word, levenshtein, 1_000_000)?;
         Ok(self.index.search_with_state(auto).into_stream())
     }
+
+    pub fn downstream_codes<'a>(
+        &'a self,
+        start_concept_id: u32,
+        code_types: &'a [impl AsRef<str> + PartialEq],
+    ) -> impl Iterator<Item = (usize, &'a ConceptCode)> {
+        ConceptCodeIterator::new(&self.concepts, code_types, start_concept_id)
+    }
+}
+
+pub struct ConceptCodeIterator<'a, CODETYPE: AsRef<str>> {
+    all_concepts: &'a [Concept],
+    code_sources: &'a [CODETYPE],
+    concept_queue: Vec<u32>,
+    seen_concepts: Vec<u32>,
+    current_concept: usize,
+    current_concept_code: usize,
+}
+
+impl<'a, CODETYPE: AsRef<str>> ConceptCodeIterator<'a, CODETYPE> {
+    fn new(
+        concepts: &'a [Concept],
+        code_sources: &'a [CODETYPE],
+        start: u32,
+    ) -> ConceptCodeIterator<'a, CODETYPE> {
+        ConceptCodeIterator {
+            all_concepts: concepts,
+            concept_queue: Vec::new(),
+            code_sources,
+            current_concept: start as usize,
+            current_concept_code: 0,
+            seen_concepts: vec![start],
+        }
+    }
+
+    fn find_next_code(&mut self) -> Option<&'a ConceptCode> {
+        let current_concept = &self.all_concepts[self.current_concept];
+
+        while self.current_concept_code < current_concept.codes.len() {
+            let code = &current_concept.codes[self.current_concept_code];
+            self.current_concept_code += 1;
+
+            if self.code_sources.is_empty()
+                || self.code_sources.iter().any(|s| s.as_ref() == code.source)
+            {
+                return Some(code);
+            }
+        }
+
+        None
+    }
+}
+
+impl<'a, CODETYPE: AsRef<str>> Iterator for ConceptCodeIterator<'a, CODETYPE> {
+    type Item = (usize, &'a ConceptCode);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // First see if we have any codes left in the current concept
+        if let Some(code) = self.find_next_code() {
+            return Some((self.current_concept, code));
+        }
+
+        // If not, then we're going to the next one.
+        self.current_concept_code = 0;
+
+        // Queue up all the children
+        let current_concept = &self.all_concepts[self.current_concept];
+        for child in &current_concept.children {
+            if !self.seen_concepts.contains(child) {
+                self.concept_queue.push(*child);
+                self.seen_concepts.push(*child);
+            }
+        }
+
+        // And then recurse
+        if let Some(n) = self.concept_queue.pop() {
+            self.current_concept = n as usize;
+            self.next()
+        } else {
+            None
+        }
+    }
 }
