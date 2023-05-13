@@ -3,6 +3,7 @@ use std::path::Path;
 use clap::Args;
 use eyre::Result;
 use fst::Streamer;
+use itertools::Itertools;
 use smol_str::SmolStr;
 use umls::{files::Files, index::score::jaccard_trigram_distance};
 
@@ -48,7 +49,9 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
 
                     if !concept.codes.is_empty() {
                         println!("Codes:");
-                        for (code_concept_id, code) in index.downstream_codes(w as u32, &args.code_types) {
+                        for (code_concept_id, code) in
+                            index.downstream_codes(w as u32, &args.code_types)
+                        {
                             let code_concept = &index.concepts[code_concept_id];
                             println!("  {} {}: {}", code_concept.cui, code.source, code.code);
                         }
@@ -56,8 +59,13 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
 
                     if !concept.parents.is_empty() {
                         println!("Parents:");
-                        for parent in &concept.parents {
-                            let parent_concept = &index.concepts[*parent as usize];
+                        let parents = concept
+                            .parents
+                            .iter()
+                            .map(|&id| &index.concepts[id as usize])
+                            .sorted_by_key(|c| &c.cui)
+                            .collect::<Vec<_>>();
+                        for parent_concept in &parents {
                             println!(
                                 "  {} - {}",
                                 parent_concept.cui, parent_concept.preferred_name
@@ -67,8 +75,13 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
 
                     if !concept.children.is_empty() {
                         println!("Children:");
-                        for child in &concept.children {
-                            let child_concept = &index.concepts[*child as usize];
+                        let children = concept
+                            .children
+                            .iter()
+                            .map(|&id| &index.concepts[id as usize])
+                            .sorted_by_key(|c| &c.cui)
+                            .collect::<Vec<_>>();
+                        for child_concept in &children {
                             println!("  {} - {}", child_concept.cui, child_concept.preferred_name);
                         }
                     }
