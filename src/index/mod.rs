@@ -35,6 +35,18 @@ pub struct Concept {
     pub codes: SmallVec<[ConceptCode; 4]>,
     pub parents: SmallVec<[u32; 4]>,
     pub children: SmallVec<[u32; 4]>,
+    #[serde(rename = "rl", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub similar: SmallVec<[u32; 4]>,
+    #[serde(rename = "sy", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub synonym: SmallVec<[u32; 4]>,
+    #[serde(rename = "ro", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub other_relationship: SmallVec<[u32; 4]>,
+    #[serde(rename = "rq", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub related_possibly_synonymous: SmallVec<[u32; 4]>,
+    #[serde(rename = "aq", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub allowed_qualifier: SmallVec<[u32; 4]>,
+    #[serde(rename = "qb", default, skip_serializing_if = "SmallVec::is_empty")]
+    pub qualified_by: SmallVec<[u32; 4]>,
 }
 
 pub struct SemanticType {

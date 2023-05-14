@@ -129,6 +129,12 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                         types: SmallVec::new(), // TODO....
                         parents: SmallVec::new(),
                         children: SmallVec::new(),
+                        similar: SmallVec::new(),
+                        synonym: SmallVec::new(),
+                        other_relationship: SmallVec::new(),
+                        related_possibly_synonymous: SmallVec::new(),
+                        allowed_qualifier: SmallVec::new(),
+                        qualified_by: SmallVec::new(),
                     },
                 )
             });
@@ -205,7 +211,7 @@ fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result
         let is_parent = rel == "PAR" || rel == "RB";
         let is_child = rel == "CHD" || rel == "RN";
 
-        if (!is_parent && !is_child) || (cui1 == cui2) {
+        if cui1 == cui2 {
             continue;
         }
 
@@ -214,21 +220,38 @@ fn build_relationships(files: &Files, concepts: &mut [(u32, Concept)]) -> Result
             None => continue,
         };
 
-        {
-            let concept1 = &mut concepts[i1 as usize].1;
-            if is_parent && !concept1.parents.contains(&i2) {
-                concept1.parents.push(i2);
-            } else if is_child && !concept1.children.contains(&i2) {
-                concept1.children.push(i2);
+        if is_parent || is_child {
+            {
+                let concept1 = &mut concepts[i1 as usize].1;
+                if is_parent && !concept1.parents.contains(&i2) {
+                    concept1.parents.push(i2);
+                } else if is_child && !concept1.children.contains(&i2) {
+                    concept1.children.push(i2);
+                }
             }
-        }
 
-        {
-            let concept2 = &mut concepts[i2 as usize].1;
-            if is_parent && !concept2.children.contains(&i1) {
-                concept2.children.push(i1);
-            } else if is_child && !concept2.parents.contains(&i1) {
-                concept2.parents.push(i1);
+            {
+                let concept2 = &mut concepts[i2 as usize].1;
+                if is_parent && !concept2.children.contains(&i1) {
+                    concept2.children.push(i1);
+                } else if is_child && !concept2.parents.contains(&i1) {
+                    concept2.parents.push(i1);
+                }
+            }
+        } else {
+            let concept1 = &mut concepts[i1 as usize].1;
+            let add_array = match rel {
+                "RL" => &mut concept1.similar,
+                "SY" => &mut concept1.synonym,
+                "RO" => &mut concept1.other_relationship,
+                "RQ" => &mut concept1.related_possibly_synonymous,
+                "AQ" => &mut concept1.allowed_qualifier,
+                "QB" => &mut concept1.qualified_by,
+                _ => continue,
+            };
+
+            if !add_array.contains(&i2) {
+                add_array.push(i2);
             }
         }
     }

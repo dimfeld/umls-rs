@@ -5,7 +5,10 @@ use eyre::Result;
 use fst::Streamer;
 use itertools::Itertools;
 use smol_str::SmolStr;
-use umls::{files::Files, index::score::jaccard_trigram_distance};
+use umls::{
+    files::Files,
+    index::{score::jaccard_trigram_distance, Index},
+};
 
 #[derive(Args, Debug)]
 pub struct SearchArgs {
@@ -27,6 +30,21 @@ pub struct SearchArgs {
     /// The minimum score, using Jaccard trigram similarity, when performing fuzzy search
     #[clap(short = 't', long = "score-threshold", default_value_t = 0.7)]
     pub score_threshold: f32,
+}
+
+fn print_sorted_concept_list(label: &str, ids: &[u32], index: &Index) {
+    if ids.is_empty() {
+        return;
+    }
+
+    println!("{label}:");
+
+    ids.iter()
+        .map(|&id| &index.concepts[id as usize])
+        .sorted_by_key(|c| &c.cui)
+        .for_each(|concept| {
+            println!("  {} - {}", concept.cui, concept.preferred_name);
+        });
 }
 
 pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
@@ -57,34 +75,26 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                         }
                     }
 
-                    if !concept.parents.is_empty() {
-                        println!("Parents:");
-                        let parents = concept
-                            .parents
-                            .iter()
-                            .map(|&id| &index.concepts[id as usize])
-                            .sorted_by_key(|c| &c.cui)
-                            .collect::<Vec<_>>();
-                        for parent_concept in &parents {
-                            println!(
-                                "  {} - {}",
-                                parent_concept.cui, parent_concept.preferred_name
-                            );
-                        }
-                    }
-
-                    if !concept.children.is_empty() {
-                        println!("Children:");
-                        let children = concept
-                            .children
-                            .iter()
-                            .map(|&id| &index.concepts[id as usize])
-                            .sorted_by_key(|c| &c.cui)
-                            .collect::<Vec<_>>();
-                        for child_concept in &children {
-                            println!("  {} - {}", child_concept.cui, child_concept.preferred_name);
-                        }
-                    }
+                    print_sorted_concept_list("Parents", &concept.parents, &index);
+                    print_sorted_concept_list("Children", &concept.children, &index);
+                    print_sorted_concept_list("Similar", &concept.similar, &index);
+                    print_sorted_concept_list("Synonyms", &concept.synonym, &index);
+                    print_sorted_concept_list(
+                        "Related, possibly synonymous",
+                        &concept.related_possibly_synonymous,
+                        &index,
+                    );
+                    print_sorted_concept_list(
+                        "Allowed Qualifiers",
+                        &concept.allowed_qualifier,
+                        &index,
+                    );
+                    print_sorted_concept_list("Qualified By", &concept.qualified_by, &index);
+                    print_sorted_concept_list(
+                        "Other Relationship",
+                        &concept.other_relationship,
+                        &index,
+                    );
                 } else {
                     println!(
                         "Found ({}us) {} - {}",
