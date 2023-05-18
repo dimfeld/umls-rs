@@ -72,14 +72,7 @@ impl Index {
         let meta_file = std::fs::File::open(meta_path)?;
         let meta = serde_json::from_reader(meta_file)?;
 
-        let concepts_lst_path = base_dir.join(CONCEPTS_LST_NAME);
-
-        let concepts_file = std::fs::File::open(concepts_lst_path)?;
-        let concepts_reader = std::io::BufReader::new(GzDecoder::new(concepts_file));
-        let concepts = concepts_reader
-            .lines()
-            .map(|line| Ok::<Concept, eyre::Report>(serde_json::from_str(&line?)?))
-            .collect::<Result<Vec<_>, _>>()?;
+        let concepts = Self::load_concepts(base_dir)?;
 
         let strings_fst_path = base_dir.join(STRINGS_FST_NAME);
         let mut strings = std::fs::File::open(strings_fst_path)?;
@@ -93,6 +86,20 @@ impl Index {
             concepts,
             index,
         })
+    }
+
+    /// Read the concepts list from disk.
+    pub fn load_concepts(base_dir: &Path) -> Result<Vec<Concept>> {
+        let concepts_lst_path = base_dir.join(CONCEPTS_LST_NAME);
+
+        let concepts_file = std::fs::File::open(concepts_lst_path)?;
+        let concepts_reader = std::io::BufReader::new(GzDecoder::new(concepts_file));
+        let concepts = concepts_reader
+            .lines()
+            .map(|line| Ok::<Concept, eyre::Report>(serde_json::from_str(&line?)?))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(concepts)
     }
 
     /// Get the string associated with an ID returned from the search function.
