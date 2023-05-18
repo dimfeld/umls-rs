@@ -1,4 +1,5 @@
-use eyre::Result;
+use ahash::{HashMap, HashMapExt};
+use eyre::{eyre, Result};
 use flate2::read::GzDecoder;
 use fst::{IntoStreamer, Streamer};
 use regex_automata::dense;
@@ -19,6 +20,7 @@ pub struct SearchIndexMeta {
     pub case_insensitive: bool,
     pub languages: Vec<SmolStr>,
     pub sources: Vec<SmolStr>,
+    pub semantic_types: Vec<SmolStr>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -49,6 +51,7 @@ pub struct Concept {
     pub qualified_by: SmallVec<[u32; 4]>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SemanticType {
     pub tui: SmolStr,
     pub name: SmolStr,
@@ -59,20 +62,20 @@ pub struct SemanticType {
 pub struct Index {
     pub meta: SearchIndexMeta,
     pub concepts: Vec<Concept>,
+    pub semantic_types: HashMap<u16, SemanticType>,
     index: fst::Map<Vec<u8>>,
 }
 
 const METADATA_NAME: &str = "umls_search.metadata.json";
 const STRINGS_FST_NAME: &str = "umls_search.strings.fst";
 const CONCEPTS_LST_NAME: &str = "umls_search.concepts.ndjson.gz";
+const SEMANTIC_TYPES_LST_NAME: &str = "umls_search.semantic_types.ndjson";
 
 impl Index {
     pub fn new(base_dir: &Path) -> Result<Index> {
         let meta_path = base_dir.join(METADATA_NAME);
         let meta_file = std::fs::File::open(meta_path)?;
         let meta = serde_json::from_reader(meta_file)?;
-
-        let concepts = Self::load_concepts(base_dir)?;
 
         let strings_fst_path = base_dir.join(STRINGS_FST_NAME);
         let mut strings = std::fs::File::open(strings_fst_path)?;
@@ -83,9 +86,28 @@ impl Index {
 
         Ok(Self {
             meta,
-            concepts,
             index,
+            concepts: Self::load_concepts(base_dir)?,
+            semantic_types: Self::load_semantic_types(base_dir)?,
         })
+    }
+
+    /// Read the semantic types list from disk.
+    pub fn load_semantic_types(base_dir: &Path) -> Result<HashMap<u16, SemanticType>> {
+        let types_path = base_dir.join(SEMANTIC_TYPES_LST_NAME);
+        let types_file = std::io::BufReader::new(std::fs::File::open(types_path)?);
+
+        let mut output = HashMap::new();
+        for line in types_file.lines() {
+            let line = line?;
+            let sem: SemanticType = serde_json::from_str(&line)?;
+
+            let tui_number = parse_tui(sem.tui.as_str())?;
+
+            output.insert(tui_number, sem);
+        }
+
+        Ok(output)
     }
 
     /// Read the concepts list from disk.
@@ -228,4 +250,13 @@ impl<'a, CODETYPE: AsRef<str>> Iterator for ConceptCodeIterator<'a, CODETYPE> {
             None
         }
     }
+}
+
+/// Parse a TUI into just the number part.
+fn parse_tui(tui: &str) -> Result<u16> {
+    if tui.chars().next().unwrap_or_default() != 'T' {
+        return Err(eyre!("Invalid TUI: {}", tui));
+    }
+
+    tui[1..].parse().map_err(eyre::Report::from)
 }

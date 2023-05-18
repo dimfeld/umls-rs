@@ -9,6 +9,7 @@ use eyre::Result;
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 
+pub(crate) use file_iterator::create_csv_reader;
 pub use schema::*;
 
 // This should be one more than the maximum number of columns in get_carry_over_columns,
@@ -26,6 +27,7 @@ struct FileMetadata {
 
 pub struct Files {
     files: HashMap<String, FileMetadata>,
+    pub(crate) base_dir: PathBuf,
 }
 
 impl Files {
@@ -56,7 +58,10 @@ impl Files {
             file.locations.sort_unstable();
         }
 
-        let mut slf = Self { files };
+        let mut slf = Self {
+            files,
+            base_dir: dir,
+        };
         slf.init_file_columns()?;
 
         Ok(slf)

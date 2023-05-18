@@ -8,9 +8,12 @@ use fst::MapBuilder;
 use smallvec::SmallVec;
 use smol_str::SmolStr;
 
-use crate::files::Files;
+use crate::files::{create_csv_reader, Files};
 
-use super::{Concept, ConceptCode, SearchIndexMeta, METADATA_NAME};
+use super::{
+    parse_tui, Concept, ConceptCode, SearchIndexMeta, SemanticType, METADATA_NAME,
+    SEMANTIC_TYPES_LST_NAME,
+};
 use super::{CONCEPTS_LST_NAME, STRINGS_FST_NAME};
 
 pub struct IndexBuilderOptions<'a> {
@@ -21,6 +24,10 @@ pub struct IndexBuilderOptions<'a> {
     pub languages: Vec<SmolStr>,
     /// The sources to include in the index. If empty, all sources are included.
     pub sources: Vec<SmolStr>,
+    /// The semantic types to include in the index. If empty, all semantic types are included.
+    /// This takes semantic tree numbers, and a number will be used as a prefix, applying to all
+    /// of its children as well.
+    pub semantic_types: Vec<SmolStr>,
 }
 
 pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
@@ -30,9 +37,13 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         case_insensitive,
         languages,
         sources,
+        semantic_types,
     } = options;
 
     let ranks = read_ranks(files)?;
+    let semantic_type_defs = read_semantic_types(files)?;
+    let concept_semantic_types =
+        read_semantic_types_map(files, &semantic_type_defs, &semantic_types)?;
 
     let mut mrconso = files.get_file_stream("MRCONSO")?;
 
@@ -60,6 +71,10 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         let code = line.get(code_idx).unwrap();
         let source = line.get(source_idx).unwrap();
         let orig_string = line.get(str_idx).unwrap();
+
+        let Some(sty) = concept_semantic_types.get(cui) else {
+            continue;
+        };
 
         let string = convert_for_search(orig_string);
         if !languages.is_empty() {
@@ -126,7 +141,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
                         cui: cui.into(),
                         preferred_name: SmolStr::from(orig_string),
                         codes,
-                        types: SmallVec::new(), // TODO....
+                        types: sty.clone(),
                         parents: SmallVec::new(),
                         children: SmallVec::new(),
                         similar: SmallVec::new(),
@@ -152,6 +167,16 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
     }
 
     fst_builder.finish()?;
+
+    let output_types_path = output_dir.join(SEMANTIC_TYPES_LST_NAME);
+    let mut output_types_writer =
+        std::io::BufWriter::new(std::fs::File::create(&output_types_path)?);
+    for (_, sem) in semantic_type_defs {
+        serde_json::to_writer(&mut output_types_writer, &sem)?;
+        writeln!(output_types_writer)?;
+    }
+
+    output_types_writer.flush()?;
 
     let output_names_path = output_dir.join(CONCEPTS_LST_NAME);
     let mut output_names_writer = GzEncoder::new(
@@ -179,6 +204,7 @@ pub fn build_index(options: IndexBuilderOptions) -> Result<()> {
         case_insensitive,
         languages,
         sources,
+        semantic_types,
     };
 
     let mut meta_file = std::fs::File::create(output_dir.join(METADATA_NAME))?;
@@ -292,4 +318,72 @@ fn read_ranks(files: &Files) -> Result<HashMap<RankSource, u32>> {
         .collect::<Result<HashMap<_, _>>>()?;
 
     Ok(ranks)
+}
+
+fn read_semantic_types(files: &Files) -> Result<HashMap<u16, SemanticType>> {
+    let srdef = std::fs::File::open(files.base_dir.join("NET").join("SRDEF"))?;
+    let mut reader = create_csv_reader(srdef);
+
+    let mut output = HashMap::new();
+    for line in reader.records() {
+        let line = line?;
+        let rel_type = line.get(0).unwrap_or_default();
+        if rel_type != "STY" {
+            continue;
+        }
+
+        let tui = line.get(1).unwrap_or_default();
+        let name = line.get(2).unwrap_or_default();
+        let tree_number = line.get(3).unwrap_or_default();
+        let desc = line.get(4).unwrap_or_default();
+
+        output.insert(
+            parse_tui(tui)?,
+            SemanticType {
+                tui: tui.into(),
+                name: name.into(),
+                tree_number: tree_number.into(),
+                description: desc.into(),
+            },
+        );
+    }
+
+    Ok(output)
+}
+
+type SemanticTypeMap = HashMap<SmolStr, SmallVec<[u16; 4]>>;
+
+fn read_semantic_types_map(
+    files: &Files,
+    type_defs: &HashMap<u16, SemanticType>,
+    include: &[SmolStr],
+) -> Result<SemanticTypeMap> {
+    let mut mrsty = files.get_file_stream("MRSTY")?;
+
+    let mut output: SemanticTypeMap = HashMap::new();
+
+    for record in mrsty.records() {
+        let record = record?;
+
+        let cui = record.get(0).unwrap_or_default();
+        let tui = parse_tui(record.get(1).unwrap_or_default())?;
+
+        if !include.is_empty() {
+            let Some(semantic_type) = type_defs.get(&tui) else {
+                continue;
+            };
+
+            let should_include = include
+                .iter()
+                .any(|i| semantic_type.tree_number.starts_with(i.as_str()));
+
+            if !should_include {
+                continue;
+            }
+        }
+
+        output.entry(cui.into()).or_default().push(tui);
+    }
+
+    Ok(output)
 }

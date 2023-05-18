@@ -25,6 +25,11 @@ pub struct BuildIndexArgs {
     /// The languages (LAT field) to include in the index. If empty, all sources are included.
     #[arg(short, long, env)]
     pub languages: Vec<SmolStr>,
+
+    /// The semantic type tree values (and their children) to include in the index. If empty, all
+    /// semantic types are included.
+    #[arg(short = 't', long = "types", env)]
+    pub semantic_types: Vec<SmolStr>,
 }
 
 pub fn run(base_dir: &Path, files: Files, args: BuildIndexArgs) -> Result<()> {
@@ -41,6 +46,7 @@ pub fn run(base_dir: &Path, files: Files, args: BuildIndexArgs) -> Result<()> {
         case_insensitive: args.case_insensitive,
         languages: args.languages,
         sources: args.sources,
+        semantic_types: args.semantic_types,
     })?;
 
     Ok(())

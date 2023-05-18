@@ -189,12 +189,12 @@ fn create_read_stream(path: &[PathBuf]) -> Result<RrfCsvReader> {
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let concatted = ConcatReader::new(readers);
+    Ok(create_csv_reader(ConcatReader::new(readers)))
+}
 
-    let csv_reader = csv::ReaderBuilder::new()
+pub(crate) fn create_csv_reader<R: std::io::Read>(r: R) -> csv::Reader<R> {
+    csv::ReaderBuilder::new()
         .delimiter(b'|')
         .has_headers(false)
-        .from_reader(concatted);
-
-    Ok(csv_reader)
+        .from_reader(r)
 }
