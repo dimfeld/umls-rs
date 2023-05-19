@@ -320,7 +320,7 @@ fn read_ranks(files: &Files) -> Result<HashMap<RankSource, u32>> {
     Ok(ranks)
 }
 
-fn read_semantic_types(files: &Files) -> Result<HashMap<u16, SemanticType>> {
+pub fn read_semantic_types(files: &Files) -> Result<HashMap<u16, SemanticType>> {
     let srdef = std::fs::File::open(files.base_dir.join("NET").join("SRDEF"))?;
     let mut reader = create_csv_reader(srdef);
 

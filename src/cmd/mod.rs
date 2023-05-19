@@ -2,6 +2,7 @@ mod build_index;
 mod extract;
 mod list_files;
 mod list_sources;
+mod list_types;
 mod search;
 mod stats;
 
@@ -25,6 +26,7 @@ pub struct Args {
 pub enum Command {
     ListFiles(list_files::ListFilesArgs),
     ListSources(list_sources::ListSourcesArgs),
+    ListTypes(list_types::ListTypesArgs),
     Extract(extract::ExtractArgs),
     BuildIndex(build_index::BuildIndexArgs),
     Search(search::SearchArgs),
@@ -42,6 +44,7 @@ pub fn run(args: Args) -> Result<()> {
     match args.command {
         Command::ListFiles(a) => list_files::run(files, a),
         Command::ListSources(a) => list_sources::run(files, a),
+        Command::ListTypes(a) => list_types::run(&dir, files, a),
         Command::BuildIndex(a) => build_index::run(&dir, files, a),
         Command::Search(a) => search::run(&dir, files, a),
         Command::Stats => stats::run(&dir, files),

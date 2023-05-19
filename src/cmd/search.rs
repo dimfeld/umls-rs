@@ -65,6 +65,13 @@ pub fn run(base_dir: &Path, _files: Files, args: SearchArgs) -> Result<()> {
                         concept.preferred_name
                     );
 
+                    println!("Semantic Types:");
+                    for id in &concept.types {
+                        if let Some(type_data) = index.semantic_types.get(id) {
+                            println!("  {} - {}", type_data.tree_number, type_data.name);
+                        }
+                    }
+
                     if !concept.codes.is_empty() {
                         println!("Codes:");
                         for (code_concept_id, code) in
